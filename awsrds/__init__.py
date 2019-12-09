@@ -1,3 +1,5 @@
+from __future__ import print_function
+
 import os
 import sys
 import boto3
@@ -5,13 +7,10 @@ import logging
 import argparse
 
 from pyperclip import copy
-from botocore.exceptions import ClientError, ParamValidationError
 
 try:
-    # import configparser
     from configparser import NoOptionError, NoSectionError, DEFAULTSECT, RawConfigParser, ParsingError
 except ImportError:
-    import ConfigParser as configparser
     from ConfigParser import NoOptionError, NoSectionError, DEFAULTSECT, RawConfigParser, ParsingError
 
 logger = logging.getLogger('aws-rds')
