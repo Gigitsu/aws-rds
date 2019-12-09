@@ -3,7 +3,7 @@ from setuptools import setup
 from codecs import open
 from os import path
 
-version = '0.0.1b0'
+version = '0.0.1b1'
 
 here = path.abspath(path.dirname(__file__))
 with open(path.join(here, 'README.md'), encoding='utf-8') as f:
