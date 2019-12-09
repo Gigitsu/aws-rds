@@ -20,7 +20,7 @@ setup(
     author_email='luigi.clemente@gsquare.it',
     packages=['awsrds'],
     scripts=['aws-rds'],
-    keywords='aws rds db auth token  db_auth_token generate_db_auth_token',
+    keywords='aws rds db auth token db_auth_token generate_db_auth_token',
     url='https://github.com/gigitsu/aws-rds',
     install_requires=['boto3', 'pyperclip'],
     entry_points={
