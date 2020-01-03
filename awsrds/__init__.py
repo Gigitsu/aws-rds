@@ -20,6 +20,58 @@ AWS_RDS_CONFIG_PATH = '%s/.aws/rdsconfig' % os.path.expanduser('~')
 
 
 def main():
+    args = get_arg()
+    cfg = read_cfg(AWS_RDS_CONFIG_PATH)
+
+    setup_logger(max(2 - args.verbose_count, 0) * 10)
+    check_config()
+
+    if args.list:
+        generate_rds_list(cfg)
+    elif args.default:
+        set_defaults(args, cfg)
+    else:
+        generate_rds_token(args, cfg)
+
+
+def set_defaults(args, cfg):
+    dict_args = vars(args)
+
+    for field in PARAMS:
+        if dict_args[field]:
+            cfg.set(DEFAULTSECT, field, dict_args[field])
+
+    write_cfg(cfg, AWS_RDS_CONFIG_PATH)
+    logger.info('default values stored')
+
+
+def generate_rds_token(args, cfg):
+    name = args.rds_name
+
+    if not cfg.has_section(name) or args.setup:
+        setup_rds(name, args, cfg)
+
+    hostname = cfg.get(name, 'hostname')
+    username = cfg.get(name, 'username')
+    region = cfg.get(name, 'region')
+    port = cfg.get(name, 'port')
+
+    client = get_rds_client(region)
+    token = client.generate_db_auth_token(hostname, port, username, region)
+    if args.to_clipboard:
+        copy(token)
+        logger.info('Token copied to clipboard')
+    else:
+        print(token, end='' if args.no_return else '\n')
+
+
+def generate_rds_list(cfg):
+    for section in cfg.sections():
+        if section != DEFAULTSECT:
+            print(section)
+
+
+def get_arg():
     parser = argparse.ArgumentParser()
     section = parser.add_mutually_exclusive_group(required=True)
 
@@ -46,56 +98,22 @@ def main():
                          help='name of the rds of which a token is required')
     section.add_argument('--default', action='store_true', required=False,
                          help='set default values')
+    section.add_argument('-l', '--list', action='store_true', required=False,
+                         help='print saved rds list, no other arguments are allowed')
 
     args = parser.parse_args()
 
-    setup_logger(max(2 - args.verbose_count, 0) * 10)
+    check_args(args, parser)
 
-    if not os.path.isfile(AWS_RDS_CONFIG_PATH):
-        console_input = prompter()
-        create = console_input('Could not locate rds config file at %s, '
-                               'would you like to create one? '
-                               '[y/n]' % AWS_RDS_CONFIG_PATH)
-        if create.lower() == 'y':
-            with open(AWS_RDS_CONFIG_PATH, 'a'):
-                pass
-        else:
-            logger.error('Could not locate rds config file at %s' % AWS_RDS_CONFIG_PATH)
-            sys.exit(1)
-
-    cfg = read_cfg(AWS_RDS_CONFIG_PATH)
-
-    if args.default:
-        set_defaults(args, cfg)
-        logger.info('default values stored')
-    else:
-        name = args.rds_name
-
-        if not cfg.has_section(name) or args.setup:
-            setup_rds(name, args, cfg)
-
-        hostname = cfg.get(name, 'hostname')
-        username = cfg.get(name, 'username')
-        region = cfg.get(name, 'region')
-        port = cfg.get(name, 'port')
-
-        client = get_rds_client(region)
-        token = client.generate_db_auth_token(hostname, port, username, region)
-        if args.to_clipboard:
-            copy(token)
-            logger.info('Token copied to clipboard')
-        else:
-            print(token, end='' if args.no_return else '\n')
+    return args
 
 
-def set_defaults(args, cfg):
-    dict_args = vars(args)
-
-    for field in PARAMS:
-        if dict_args[field]:
-            cfg.set(DEFAULTSECT, field, dict_args[field])
-
-    write_cfg(cfg, AWS_RDS_CONFIG_PATH)
+def get_rds_client(region):
+    try:
+        return boto3.client('rds', region_name=region)
+    except NoOptionError as e:
+        logger.error(e)
+        sys.exit(1)
 
 
 def read_cfg(path):
@@ -113,14 +131,6 @@ def read_cfg(path):
 def write_cfg(cfg, path):
     with open(path, 'w') as file:
         cfg.write(file)
-
-
-def get_rds_client(region):
-    try:
-        return boto3.client('rds', region_name=region)
-    except NoOptionError as e:
-        logger.error(e)
-        sys.exit(1)
 
 
 def setup_rds(name, args, cfg):
@@ -153,6 +163,28 @@ def setup_logger(level=logging.DEBUG):
 
     logger.addHandler(stdout_handler)
     logger.setLevel(level)
+
+
+def check_config():
+    if not os.path.isfile(AWS_RDS_CONFIG_PATH):
+        console_input = prompter()
+        create = console_input('Could not locate rds config file at %s, '
+                               'would you like to create one? '
+                               '[y/n]' % AWS_RDS_CONFIG_PATH)
+        if create.lower() == 'y':
+            with open(AWS_RDS_CONFIG_PATH, 'a'):
+                pass
+        else:
+            logger.error('Could not locate rds config file at %s' % AWS_RDS_CONFIG_PATH)
+            sys.exit(1)
+
+
+def check_args(args, parser):
+    if args.list:
+        dict_args = vars(args)
+        for key in dict_args:
+            if dict_args[key] and key not in ['list', 'verbose_count']:
+                parser.error('illegal argument --%s used with --list' % key)
 
 
 def prompter():
